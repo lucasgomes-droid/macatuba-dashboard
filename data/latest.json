@@ -1,0 +1,30 @@
+{
+  "meta": {
+    "fonte": "AppSheet ICC - Gestão Operacional (via Claude in Chrome, leitura manual/agendada)",
+    "unidade": "Macatuba",
+    "ultima_sincronizacao": "2026-09-20T18:44:00-03:00",
+    "status_conexao": "ONLINE",
+    "observacao": "Snapshot inicial de validação — contém apenas os totais e status reais já confirmados na Etapa 1, mais 3 registros de amostra parseados em detalhe. A tarefa agendada substitui este arquivo por uma leitura completa a cada execução."
+  },
+  "contagens_macatuba": {
+    "pedidos": 1106,
+    "recebimentos": 1921,
+    "veiculos": 1948
+  },
+  "status_pedido_validos": ["Aguardando OP", "Não Iniciado", "Em Fumigação", "Aguardando Carregamento", "Em Separação", "Cancelado", "Carregado", "Suspenso"],
+  "status_recebimento_validos": ["Descarregado", "Carregado", "Programado", "Não Descarregado", "Confirmado", "Não se Apresentou", ""],
+  "status_veiculo_validos": ["Carregado", "Descarregado", "Reprovado", "Desistência"],
+  "amostra_pedidos": [
+    {
+      "pedido": "56453", "operacao": "Macatuba", "status_pedido": "Carregado",
+      "tipo_pedido": "Mercado Interno", "qtd_kg": 12500.0, "qtd_toneladas": 12.5,
+      "cliente": "NEOVIA NUTRICAO E SAUDE ANIMAL LTDA", "produto": "STARYEAST"
+    }
+  ],
+  "amostra_recebimentos": [
+    {
+      "id": "1355", "operacao": "Macatuba", "status": "Descarregado",
+      "fornecedor": "CLARIANT", "peso_kg": 30000.0, "peso_toneladas": 30.0
+    }
+  ]
+}
