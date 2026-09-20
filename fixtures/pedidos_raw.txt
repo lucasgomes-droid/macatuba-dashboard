@@ -1,0 +1,111 @@
+🚦 Status Pedido📃 Pedido🏭 Operação💼 Tipo de Pedido🔢 Qtd (Kg)📅 Data Envio PV📅 Data Instrução📅 Data Atualizada ( Se Tiver alguma alteração)📅 Data Estufagem (Reschedule)📅 Data Carregamento ( Quando o veículo foi Carregado)🧑‍💼 ClientePaís📦 Produto🎯 Tipo de Carga🔢 Qtd Tampas🔢 Qtd Pallets🧩 Tipo de Pallet🚢 Csi🏷️ Lacre🚚 Tipo de Frete👨‍💼 Vendedor🕷️ Fumigação📅 Data Expurgo📅 Data Aeração👷 Conferente📅 Inicio Separação📅 Término SeparaçãoObservação
+Carregado
+56453
+Macatuba
+Mercado Interno
+12.500
+24/12/2025
+6/12/2026
+6/1/2026 11:10:00
+NEOVIA NUTRICAO E SAUDE ANIMAL LTDA
+Brasil
+STARYEAST
+SACARIA
+Palete MI
+Não
+Definitivo
+Fob
+MARCIA VILLACA
+AGUARDANDO CONFERENTE
+29/12/2025
+29/12/2025
+Cancelado
+62278
+Jundiaí 1
+Mercado Interno
+8.000
+10/9/2026
+14/11/2026
+PRIMATO COOPERATIVA AGROINDUSTRIAL
+Brasil
+RUMEN YEAST
+SACARIA
+7
+Palete MI
+Não
+N/A
+Cif
+LORYANE ROCHA
+Não Iniciado
+109677
+Jundiaí 2
+Mercado Externo
+25.600
+17/9/2026
+25/10/2026
+FF CHEMICALS BV - NETHERLANDS
+IMMUNOWALL
+BAG
+20
+PBR Eucalipto
+Não
+Definitivo
+Cif
+PHILIPPE DEMAREST
+Fumiga Armazém
+30/7/2026
+9/8/2026
+Aguardando OP
+109832
+Macatuba
+Mercado Externo
+25.000
+10/9/2026
+16/10/2026
+VETANCO
+ARGENTINA
+NUEVO MANNAN
+SACARIA
+PBR Pinos
+Não
+Definitivo
+Cif
+RICARDO TOLEDO
+Aguardando Carregamento
+62828
+Jundiaí 2
+Mercado Interno
+15.000
+15/9/2026
+16/10/2026
+FOX AGRONEGOCIO INDUSTRIA E COMERCIO LTDA
+Brasil
+HILYSES
+SACARIA
+Palete MI
+Não
+N/A
+Cif
+LINCOLN BENINCA
+ALEXANDER VIEIRA
+16/9/2026
+16/9/2026
+Em Fumigação
+109321
+Macatuba
+Mercado Externo
+24.000
+2/9/2026
+7/10/2026
+PERFECT COMPANION (CHINA) CO.LTD.
+CHINA
+MAXICELLPRO
+BAG
+PBR Pinos
+Não
+Definitivo
+Cif
+KUO-WEI SSU
+Fumiga Armazém
+15/9/2026
+15/9/2026
