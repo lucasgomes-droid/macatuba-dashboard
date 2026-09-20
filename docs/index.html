@@ -120,7 +120,7 @@
                       'var(--series-5)','var(--series-6)','var(--series-7)','var(--series-8)'];
 
     async function load() {
-      const res = await fetch('data/latest.json?_=' + Date.now());
+      const res = await fetch('https://raw.githubusercontent.com/lucasgomes-droid/macatuba-dashboard/main/data/latest.json?_=' + Date.now());
       const data = await res.json();
       render(data);
     }
