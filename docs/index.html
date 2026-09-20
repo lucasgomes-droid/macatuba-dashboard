@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Macatuba</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f5f4f1;
+    --surface-1: #fcfcfb;
+    --surface-2: #ffffff;
+    --border: #e3e1da;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #8a8878;
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+    --series-6: #008300;
+    --series-7: #4a3aa7;
+    --series-8: #e34948;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #222221;
+      --border: #33322f;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #8a8878;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+      --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
+      --series-7: #9085e9; --series-8: #e66767;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #222221;
+    --border: #33322f; --text-primary: #ffffff; --text-secondary: #c3c2b7;
+    --text-muted: #8a8878;
+    --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+    --series-4: #c98500; --series-5: #d55181; --series-6: #008300;
+    --series-7: #9085e9; --series-8: #e66767;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-0); color: var(--text-primary);
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 20px;
+  }
+  header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  h1 { font-size: 1.25rem; margin: 0; }
+  .sync-info { font-size: 0.85rem; color: var(--text-secondary); }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--status-good); }
+  .dot.offline { background: var(--status-critical); }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .kpi .label { font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 6px; }
+  .kpi .value { font-size: 1.6rem; font-weight: 600; }
+  .kpi .sub { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+
+  .panel { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px; }
+  .panel h2 { font-size: 0.95rem; margin: 0 0 12px; }
+
+  .bar-row { display: grid; grid-template-columns: 160px 1fr 48px; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.82rem; }
+  .bar-track { background: var(--surface-0); border-radius: 4px; height: 16px; overflow: hidden; position: relative; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width .3s; }
+  .bar-row .n { text-align: right; color: var(--text-secondary); }
+  .bar-track:hover::after {
+    content: attr(data-tip); position: absolute; top: -26px; left: 0;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-primary);
+    padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; white-space: nowrap; z-index: 2;
+  }
+
+  .note { font-size: 0.78rem; color: var(--text-muted); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.78rem; color: var(--text-secondary); margin-bottom: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Dashboard Operacional — Macatuba</h1>
+    <div id="statusPill" class="status-pill"><span class="dot"></span><span id="statusText">carregando…</span></div>
+  </header>
+  <div class="sync-info" id="syncInfo"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <h2>Pedidos por status (carregamento)</h2>
+    <div id="pedidosStatusChart"></div>
+    <p class="note">Contagem de status possíveis (a distribuição real por status entra quando a coleta completa estiver rodando — ver <code>data/latest.json</code>).</p>
+  </div>
+
+  <div class="panel">
+    <h2>Recebimentos por status</h2>
+    <div id="recebimentosStatusChart"></div>
+    <p class="note">Status exatamente como existem na fonte — sem forçar o rótulo "Aguardando Descarregamento", que não existe no AppSheet.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Amostra de registros já validados</h2>
+    <table style="width:100%; border-collapse: collapse; font-size:0.85rem;" id="amostraTable"></table>
+  </div>
+
+  <script>
+    const PALETTE = ['var(--series-1)','var(--series-2)','var(--series-3)','var(--series-4)',
+                      'var(--series-5)','var(--series-6)','var(--series-7)','var(--series-8)'];
+
+    async function load() {
+      const res = await fetch('data/latest.json?_=' + Date.now());
+      const data = await res.json();
+      render(data);
+    }
+
+    function render(data) {
+      document.getElementById('statusText').textContent =
+        data.meta.status_conexao === 'ONLINE' ? 'ONLINE' : 'OFFLINE';
+      document.getElementById('statusPill').querySelector('.dot').classList.toggle('offline', data.meta.status_conexao !== 'ONLINE');
+      const d = new Date(data.meta.ultima_sincronizacao);
+      document.getElementById('syncInfo').textContent =
+        `Última sincronização com a fonte: ${d.toLocaleString('pt-BR')} — ${data.meta.observacao}`;
+
+      const kpis = document.getElementById('kpis');
+      kpis.innerHTML = `
+        <div class="kpi"><div class="label">Pedidos (Macatuba)</div><div class="value">${data.contagens_macatuba.pedidos.toLocaleString('pt-BR')}</div></div>
+        <div class="kpi"><div class="label">Recebimentos (Macatuba)</div><div class="value">${data.contagens_macatuba.recebimentos.toLocaleString('pt-BR')}</div></div>
+        <div class="kpi"><div class="label">Veículos (Macatuba)</div><div class="value">${data.contagens_macatuba.veiculos.toLocaleString('pt-BR')}</div></div>
+      `;
+
+      barChart('pedidosStatusChart', data.status_pedido_validos.map(s => ({label: s, value: 1})));
+      barChart('recebimentosStatusChart', data.status_recebimento_validos.filter(s => s).map(s => ({label: s, value: 1})));
+
+      const rows = [
+        ...data.amostra_pedidos.map(p => `<tr><td>Pedido</td><td>${p.pedido}</td><td>${p.status_pedido}</td><td>${p.qtd_toneladas} t</td><td>${p.cliente}</td></tr>`),
+        ...data.amostra_recebimentos.map(r => `<tr><td>Recebimento</td><td>${r.id}</td><td>${r.status}</td><td>${r.peso_toneladas} t</td><td>${r.fornecedor}</td></tr>`),
+      ];
+      document.getElementById('amostraTable').innerHTML =
+        `<tr style="color:var(--text-secondary); text-align:left; font-size:0.78rem;"><th>Tipo</th><th>Ref.</th><th>Status</th><th>Qtd.</th><th>Cliente/Fornecedor</th></tr>` + rows.join('');
+    }
+
+    function barChart(elId, items) {
+      const max = Math.max(...items.map(i => i.value), 1);
+      const el = document.getElementById(elId);
+      el.innerHTML = items.map((item, i) => `
+        <div class="bar-row">
+          <span>${item.label}</span>
+          <div class="bar-track" data-tip="${item.label}">
+            <div class="bar-fill" style="width:${(item.value/max*100)}%; background:${PALETTE[i % PALETTE.length]}"></div>
+          </div>
+          <span class="n">${item.value}</span>
+        </div>`).join('');
+    }
+
+    load().catch(err => {
+      document.getElementById('statusText').textContent = 'OFFLINE';
+      document.getElementById('statusPill').querySelector('.dot').classList.add('offline');
+      document.getElementById('syncInfo').textContent = 'Erro ao carregar data/latest.json: ' + err;
+    });
+
+    setInterval(load, 10000); // atualiza a cada 10s, sem reload da página
+  </script>
+</body>
+</html>
