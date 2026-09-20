@@ -1,0 +1,8 @@
+{
+  "pedidos_status": ["Aguardando OP", "Não Iniciado", "Em Fumigação", "Aguardando Carregamento", "Em Separação", "Cancelado", "Carregado", "Suspenso"],
+  "recebimentos_status": ["Descarregado", "Carregado", "Programado", "Não Descarregado", "Confirmado", "Não se Apresentou", ""],
+  "veiculos_status": ["Carregado", "Descarregado", "Reprovado", "Desistência"],
+  "unidades_pedidos_veiculos": ["Jundiaí 1", "Jundiaí 2", "Macatuba"],
+  "unidades_recebimentos": ["Jundiaí 1", "Jundiaí 2", "Macatuba", "Itumbiara", "Pernambuco", "Limeira"],
+  "contagem_macatuba": {"pedidos": 1106, "recebimentos": 1921, "veiculos": 1948}
+}
