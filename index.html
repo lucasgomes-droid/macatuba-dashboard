@@ -103,6 +103,32 @@
   table.simple td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
   table.simple tr:last-child td { border-bottom: none; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  .day-picker-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .day-picker-row input[type="date"] {
+    font-size: 0.9rem; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text-primary); font-family: inherit;
+  }
+  .day-nav-btn {
+    font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface-2); color: var(--text-secondary); cursor: pointer;
+  }
+  .day-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .day-kpi { border-radius: 10px; padding: 14px 16px; color: #fff; }
+  .day-kpi.receb { background: var(--series-2); }
+  .day-kpi.carreg { background: var(--series-1); }
+  .day-kpi .label { font-size: 0.78rem; opacity: 0.9; margin-bottom: 6px; }
+  .day-kpi .value { font-size: 1.6rem; font-weight: 700; }
+  .day-kpi .sub { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
+
+  .status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+  .status-badge.ok { background: color-mix(in srgb, var(--status-good) 18%, transparent); color: var(--status-good); }
+  .status-badge.bad { background: color-mix(in srgb, var(--status-critical) 18%, transparent); color: var(--status-critical); }
+  .tipo-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; font-weight: 600; }
+  .tipo-badge::before { content: ""; width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+  .tipo-badge.carreg::before { background: var(--series-1); }
+  .tipo-badge.receb::before { background: var(--series-2); }
+  .empty-day { padding: 24px 8px; text-align: center; color: var(--text-muted); font-size: 0.88rem; }
 </style>
 </head>
 <body>
@@ -113,6 +139,39 @@
   <div class="sync-info" id="syncInfo"></div>
 
   <div class="kpis" id="kpis"></div>
+
+  <div class="panel">
+    <h2>Filtrar por dia</h2>
+    <p class="panel-sub" id="dayPanelSub">Selecione uma data para ver carregamentos e recebimentos reais daquele dia, por usina/cliente e status.</p>
+    <div class="day-picker-row">
+      <button class="day-nav-btn" id="dayPrev">‹ dia anterior</button>
+      <input type="date" id="dayInput">
+      <button class="day-nav-btn" id="dayNext">dia seguinte ›</button>
+      <button class="day-nav-btn" id="dayToday">hoje</button>
+    </div>
+
+    <div class="day-kpis">
+      <div class="day-kpi receb">
+        <div class="label">Total recebido no dia (kg)</div>
+        <div class="value" id="dayTotalReceb">—</div>
+        <div class="sub" id="dayTotalRecebSub"></div>
+      </div>
+      <div class="day-kpi carreg">
+        <div class="label">Total carregado no dia (kg)</div>
+        <div class="value" id="dayTotalCarreg">—</div>
+        <div class="sub" id="dayTotalCarregSub"></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--series-1)"></i> Carregamento (saída / Pedidos)</span>
+      <span><i style="background:var(--series-2)"></i> Recebimento (entrada / Fornecedores)</span>
+    </div>
+    <div id="dayBar"></div>
+
+    <div id="dayTableWrap" style="margin-top:14px;"></div>
+    <p class="note" id="dayNote"></p>
+  </div>
 
   <div class="panel">
     <h2>Relatório de movimentação (kg)</h2>
@@ -146,19 +205,31 @@
     const PALETTE = ['var(--series-1)','var(--series-2)','var(--series-3)','var(--series-4)',
                       'var(--series-5)','var(--series-6)','var(--series-7)','var(--series-8)'];
 
+    const STATUS_LABEL = { C: 'Carregado', D: 'Descarregado', R: 'Reprovado', X: 'Desistência' };
+    const STATUS_OK = { C: true, D: true, R: false, X: false };
+    const TIPO_LABEL = { C: 'Carregamento', R: 'Recebimento' };
+
     let AGG = null;
+    let REG = null;
     let currentPeriod = 'daily';
+    let maxRegDate = null;
 
     async function load() {
-      const [resLatest, resAgg] = await Promise.all([
+      const [resLatest, resAgg, resReg] = await Promise.all([
         fetch('data/latest.json?_=' + Date.now()),
-        fetch('data/veiculos_agg_macatuba.json?_=' + Date.now())
+        fetch('data/veiculos_agg_macatuba.json?_=' + Date.now()),
+        fetch('data/veiculos_por_dia_macatuba.json?_=' + Date.now())
       ]);
       const data = await resLatest.json();
       AGG = await resAgg.json();
+      REG = await resReg.json();
+      const regDates = Object.keys(REG.registros).sort();
+      maxRegDate = regDates[regDates.length - 1];
+
       render(data);
       renderReport(currentPeriod);
       renderClients();
+      setupDayFilter();
     }
 
     function fmtKg(n) {
@@ -171,7 +242,7 @@
       document.getElementById('statusPill').querySelector('.dot').classList.toggle('offline', data.meta.status_conexao !== 'ONLINE');
       const d = new Date(data.meta.ultima_sincronizacao);
       document.getElementById('syncInfo').textContent =
-        `Última sincronização com a fonte: ${d.toLocaleString('pt-BR')} — ${AGG.meta.observacao}`;
+        `Última sincronização com a fonte: ${d.toLocaleString('pt-BR')} — último registro com movimentação no AppSheet: ${maxRegDate ? maxRegDate.split('-').reverse().join('/') : '—'}.`;
 
       const totalCarregado = Object.values(AGG.monthly).reduce((s, m) => s + m.carregamento_kg, 0);
       const totalRecebido = Object.values(AGG.monthly).reduce((s, m) => s + m.recebimento_kg, 0);
@@ -243,6 +314,109 @@
       const totalClients = Object.keys(AGG.byClient).length;
       document.getElementById('clientNote').textContent =
         `Mostrando os 20 maiores de ${totalClients} clientes/fornecedores/usinas reais registrados no período. Nomes exatamente como cadastrados no AppSheet.`;
+    }
+
+    // ---- Filtro por dia ----
+
+    function localTodayISO() {
+      const d = new Date();
+      const tz = new Date(d.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const y = tz.getFullYear(), m = String(tz.getMonth() + 1).padStart(2, '0'), day = String(tz.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function shiftDate(iso, delta) {
+      const [y, m, d] = iso.split('-').map(Number);
+      const dt = new Date(Date.UTC(y, m - 1, d));
+      dt.setUTCDate(dt.getUTCDate() + delta);
+      return dt.toISOString().slice(0, 10);
+    }
+
+    function fmtDatePt(iso) {
+      const [y, m, d] = iso.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    function setupDayFilter() {
+      const input = document.getElementById('dayInput');
+      const initial = localTodayISO();
+      input.value = initial;
+
+      input.addEventListener('change', () => renderDay(input.value));
+      document.getElementById('dayPrev').addEventListener('click', () => {
+        input.value = shiftDate(input.value, -1);
+        renderDay(input.value);
+      });
+      document.getElementById('dayNext').addEventListener('click', () => {
+        input.value = shiftDate(input.value, 1);
+        renderDay(input.value);
+      });
+      document.getElementById('dayToday').addEventListener('click', () => {
+        input.value = localTodayISO();
+        renderDay(input.value);
+      });
+
+      renderDay(initial);
+    }
+
+    function renderDay(dateIso) {
+      const dayRecs = (REG.registros[dateIso] || []).map(r => ({
+        hora: r[0], tipo: r[1], status: r[2], kg: r[3], clientes: r[4],
+      }));
+
+      const totalCarreg = dayRecs.filter(r => r.tipo === 'C').reduce((s, r) => s + r.kg, 0);
+      const totalReceb = dayRecs.filter(r => r.tipo === 'R').reduce((s, r) => s + r.kg, 0);
+      const nCarreg = dayRecs.filter(r => r.tipo === 'C').length;
+      const nReceb = dayRecs.filter(r => r.tipo === 'R').length;
+
+      document.getElementById('dayTotalReceb').textContent = fmtKg(totalReceb);
+      document.getElementById('dayTotalRecebSub').textContent = `${nReceb} movimentação(ões)`;
+      document.getElementById('dayTotalCarreg').textContent = fmtKg(totalCarreg);
+      document.getElementById('dayTotalCarregSub').textContent = `${nCarreg} movimentação(ões)`;
+
+      const maxVal = Math.max(totalCarreg, totalReceb, 1);
+      document.getElementById('dayBar').innerHTML = `
+        <div class="bar-row dual">
+          <span class="label">${fmtDatePt(dateIso)}</span>
+          <div class="bar-track" data-tip="Carregamento: ${fmtKg(totalCarreg)} (${nCarreg} mov.)">
+            <div class="bar-fill" style="width:${(totalCarreg/maxVal*100)}%; background:var(--series-1)"></div>
+          </div>
+          <div class="bar-track" data-tip="Recebimento: ${fmtKg(totalReceb)} (${nReceb} mov.)">
+            <div class="bar-fill" style="width:${(totalReceb/maxVal*100)}%; background:var(--series-2)"></div>
+          </div>
+          <span class="n">${fmtKg(totalCarreg + totalReceb)}</span>
+        </div>`;
+
+      const wrap = document.getElementById('dayTableWrap');
+      if (dayRecs.length === 0) {
+        wrap.innerHTML = `<div class="empty-day">Nenhuma movimentação registrada no AppSheet para ${fmtDatePt(dateIso)}.</div>`;
+      } else {
+        const rows = [];
+        dayRecs.sort((a, b) => a.hora.localeCompare(b.hora));
+        dayRecs.forEach(r => {
+          const clientesList = r.clientes.length ? r.clientes : [['—', r.kg]];
+          clientesList.forEach(([nome, kg]) => {
+            const tipoClass = r.tipo === 'C' ? 'carreg' : 'receb';
+            const statusClass = STATUS_OK[r.status] ? 'ok' : 'bad';
+            rows.push(`<tr>
+              <td>${r.hora}</td>
+              <td>${nome}</td>
+              <td><span class="tipo-badge ${tipoClass}">${TIPO_LABEL[r.tipo] || r.tipo}</span></td>
+              <td class="num">${fmtKg(kg)}</td>
+              <td><span class="status-badge ${statusClass}">${STATUS_LABEL[r.status] || r.status}</span></td>
+            </tr>`);
+          });
+        });
+        wrap.innerHTML = `<table class="simple">
+          <tr><th>Hora</th><th>Usina / Cliente / Fornecedor</th><th>Tipo</th><th>Kg</th><th>Status</th></tr>
+          ${rows.join('')}
+        </table>`;
+      }
+
+      const note = dateIso > maxRegDate
+        ? `Fonte (AppSheet) ainda não tem registros além de ${fmtDatePt(maxRegDate)} — este dia ainda não aconteceu ou não foi lançado no pátio.`
+        : `Fonte: view Veículos do AppSheet, filtrada por Operação=Macatuba e Data Chegada Pátio = ${fmtDatePt(dateIso)}. Status exatamente como no AppSheet.`;
+      document.getElementById('dayNote').textContent = note;
     }
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
