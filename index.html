@@ -113,13 +113,19 @@
     font-size: 0.82rem; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--surface-2); color: var(--text-secondary); cursor: pointer;
   }
-  .day-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .day-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 16px; }
   .day-kpi { border-radius: 10px; padding: 14px 16px; color: #fff; }
   .day-kpi.receb { background: var(--series-2); }
   .day-kpi.carreg { background: var(--series-1); }
   .day-kpi .label { font-size: 0.78rem; opacity: 0.9; margin-bottom: 6px; }
   .day-kpi .value { font-size: 1.6rem; font-weight: 700; }
   .day-kpi .sub { font-size: 0.75rem; opacity: 0.85; margin-top: 2px; }
+  .day-kpi .stat-pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .day-kpi .stat-pill {
+    font-size: 0.74rem; padding: 3px 9px; border-radius: 999px; font-weight: 600;
+    background: rgba(255,255,255,0.18); white-space: nowrap;
+  }
+  .day-kpi .stat-pill.pending { background: rgba(0,0,0,0.28); }
 
   .status-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.76rem; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
   .status-badge.ok { background: color-mix(in srgb, var(--status-good) 18%, transparent); color: var(--status-good); }
@@ -129,6 +135,23 @@
   .tipo-badge.carreg::before { background: var(--series-1); }
   .tipo-badge.receb::before { background: var(--series-2); }
   .empty-day { padding: 24px 8px; text-align: center; color: var(--text-muted); font-size: 0.88rem; }
+
+  .day-split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+  @media (max-width: 760px) { .day-split { grid-template-columns: 1fr; } }
+  .day-col { background: var(--surface-0); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .day-col h3 { font-size: 0.85rem; margin: 0 0 2px; display: flex; align-items: center; gap: 6px; }
+  .day-col h3::before { content: ""; width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .day-col.carreg h3::before { background: var(--series-1); }
+  .day-col.receb h3::before { background: var(--series-2); }
+  .day-col .col-sub { font-size: 0.74rem; color: var(--text-muted); margin: 0 0 10px; }
+  .day-item-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+  }
+  .day-item-row:last-child { border-bottom: none; }
+  .day-item-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .day-item-row .hora { color: var(--text-muted); font-size: 0.74rem; margin-right: 6px; }
+  .day-item-row .kg { color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 8px; }
 </style>
 </head>
 <body>
@@ -152,25 +175,43 @@
 
     <div class="day-kpis">
       <div class="day-kpi receb">
-        <div class="label">Total recebido no dia (kg)</div>
+        <div class="label">Recebimento programado (kg) — o que está previsto para o dia</div>
         <div class="value" id="dayTotalReceb">—</div>
-        <div class="sub" id="dayTotalRecebSub"></div>
+        <div class="sub" id="dayRecebSub"></div>
+        <div class="stat-pills" id="dayStatsReceb"></div>
       </div>
       <div class="day-kpi carreg">
-        <div class="label">Total carregado no dia (kg)</div>
+        <div class="label">Carregamento programado (kg) — o que está previsto para o dia</div>
         <div class="value" id="dayTotalCarreg">—</div>
-        <div class="sub" id="dayTotalCarregSub"></div>
+        <div class="sub" id="dayCarregSub"></div>
+        <div class="stat-pills" id="dayStatsCarreg"></div>
       </div>
     </div>
+    <p class="note" id="dayProgNote" style="margin-bottom:14px;"></p>
 
-    <div class="legend">
-      <span><i style="background:var(--series-1)"></i> Carregamento (saída / Pedidos)</span>
-      <span><i style="background:var(--series-2)"></i> Recebimento (entrada / Fornecedores)</span>
+    <div class="panel" style="background:var(--surface-0); margin-bottom:0;">
+      <h2 style="font-size:0.88rem;">O que já aconteceu no pátio nesse dia (real, view Veículos)</h2>
+      <p class="panel-sub" id="dayPanelSub2">Movimentações física já registradas — mostra quem já foi descarregado/carregado.</p>
+      <div class="legend">
+        <span><i style="background:var(--series-1)"></i> Carregamento (saída / Pedidos)</span>
+        <span><i style="background:var(--series-2)"></i> Recebimento (entrada / Fornecedores)</span>
+      </div>
+      <div id="dayBar"></div>
+      <div id="dayEmpty"></div>
+      <div class="day-split" id="daySplit">
+        <div class="day-col receb">
+          <h3>Usinas — recebidos</h3>
+          <p class="col-sub" id="dayUsinasSub"></p>
+          <div id="dayUsinasList"></div>
+        </div>
+        <div class="day-col carreg">
+          <h3>Clientes — carregados</h3>
+          <p class="col-sub" id="dayClientesSub"></p>
+          <div id="dayClientesList"></div>
+        </div>
+      </div>
+      <p class="note" id="dayNote" style="margin-top:12px;"></p>
     </div>
-    <div id="dayBar"></div>
-
-    <div id="dayTableWrap" style="margin-top:14px;"></div>
-    <p class="note" id="dayNote"></p>
   </div>
 
   <div class="panel">
@@ -189,11 +230,19 @@
     <p class="note">Fonte: view Veículos do AppSheet (ICC - Gestão Operacional), filtrada para a unidade Macatuba. Quantidades reais em quilogramas (kg), não contagem de registros.</p>
   </div>
 
-  <div class="panel">
-    <h2>Top clientes / usinas por quantidade (kg)</h2>
-    <p class="panel-sub">Somatório de carregamento + recebimento por Cliente/Fornecedor, período completo (<span id="clientPeriod"></span>)</p>
-    <div id="clientChart"></div>
-    <p class="note" id="clientNote"></p>
+  <div class="day-split" style="margin-top:0; margin-bottom:20px;">
+    <div class="panel" style="margin-bottom:0;">
+      <h2>Top usinas — de quem vamos receber (kg)</h2>
+      <p class="panel-sub">Volume recebido por usina/fornecedor, período completo (<span id="usinaPeriod"></span>)</p>
+      <div id="usinaChart"></div>
+      <p class="note" id="usinaNote"></p>
+    </div>
+    <div class="panel" style="margin-bottom:0;">
+      <h2>Top clientes — para quem vamos carregar (kg)</h2>
+      <p class="panel-sub">Volume carregado por cliente, período completo (<span id="clientPeriod"></span>)</p>
+      <div id="clientChart"></div>
+      <p class="note" id="clientNote"></p>
+    </div>
   </div>
 
   <div class="panel">
@@ -211,18 +260,24 @@
 
     let AGG = null;
     let REG = null;
+    let REC_PROG = null;
+    let PED_PROG = null;
     let currentPeriod = 'daily';
     let maxRegDate = null;
 
     async function load() {
-      const [resLatest, resAgg, resReg] = await Promise.all([
+      const [resLatest, resAgg, resReg, resRecProg, resPedProg] = await Promise.all([
         fetch('data/latest.json?_=' + Date.now()),
         fetch('data/veiculos_agg_macatuba.json?_=' + Date.now()),
-        fetch('data/veiculos_por_dia_macatuba.json?_=' + Date.now())
+        fetch('data/veiculos_por_dia_macatuba.json?_=' + Date.now()),
+        fetch('data/recebimentos_programado_por_dia_macatuba.json?_=' + Date.now()),
+        fetch('data/pedidos_programado_por_dia_macatuba.json?_=' + Date.now())
       ]);
       const data = await resLatest.json();
       AGG = await resAgg.json();
       REG = await resReg.json();
+      REC_PROG = await resRecProg.json();
+      PED_PROG = await resPedProg.json();
       const regDates = Object.keys(REG.registros).sort();
       maxRegDate = regDates[regDates.length - 1];
 
@@ -299,21 +354,45 @@
     }
 
     function renderClients() {
-      document.getElementById('clientPeriod').textContent = `${AGG.meta.periodo_coberto.inicio} a ${AGG.meta.periodo_coberto.fim}`;
-      const entries = Object.entries(AGG.byClient).sort((a, b) => b[1].kg - a[1].kg).slice(0, 20);
-      const max = Math.max(...entries.map(e => e[1].kg), 1);
-      const el = document.getElementById('clientChart');
-      el.innerHTML = entries.map(([name, v], i) => `
+      const periodTxt = `${AGG.meta.periodo_coberto.inicio} a ${AGG.meta.periodo_coberto.fim}`;
+      document.getElementById('clientPeriod').textContent = periodTxt;
+      document.getElementById('usinaPeriod').textContent = periodTxt;
+
+      // Usinas = de quem recebemos (recebimento_kg > 0)
+      const usinas = Object.entries(AGG.byClient)
+        .filter(([, v]) => v.recebimento_kg > 0)
+        .sort((a, b) => b[1].recebimento_kg - a[1].recebimento_kg)
+        .slice(0, 15);
+      const maxU = Math.max(...usinas.map(e => e[1].recebimento_kg), 1);
+      document.getElementById('usinaChart').innerHTML = usinas.map(([name, v], i) => `
         <div class="bar-row">
           <span class="label" title="${name}">${name}</span>
-          <div class="bar-track" data-tip="${fmtKg(v.kg)} — ${v.n} movimentações (carreg.: ${fmtKg(v.carregamento_kg)} / receb.: ${fmtKg(v.recebimento_kg)})">
-            <div class="bar-fill" style="width:${(v.kg/max*100)}%; background:${PALETTE[i % PALETTE.length]}"></div>
+          <div class="bar-track" data-tip="${fmtKg(v.recebimento_kg)} recebidos">
+            <div class="bar-fill" style="width:${(v.recebimento_kg/maxU*100)}%; background:var(--series-2)"></div>
           </div>
-          <span class="n">${fmtKg(v.kg)}</span>
+          <span class="n">${fmtKg(v.recebimento_kg)}</span>
         </div>`).join('');
-      const totalClients = Object.keys(AGG.byClient).length;
+      const totalUsinas = Object.values(AGG.byClient).filter(v => v.recebimento_kg > 0).length;
+      document.getElementById('usinaNote').textContent =
+        `Mostrando as 15 maiores de ${totalUsinas} usinas/fornecedores reais que enviaram recebimento no período. Nomes exatamente como cadastrados no AppSheet.`;
+
+      // Clientes = para quem carregamos (carregamento_kg > 0)
+      const clientes = Object.entries(AGG.byClient)
+        .filter(([, v]) => v.carregamento_kg > 0)
+        .sort((a, b) => b[1].carregamento_kg - a[1].carregamento_kg)
+        .slice(0, 15);
+      const maxC = Math.max(...clientes.map(e => e[1].carregamento_kg), 1);
+      document.getElementById('clientChart').innerHTML = clientes.map(([name, v], i) => `
+        <div class="bar-row">
+          <span class="label" title="${name}">${name}</span>
+          <div class="bar-track" data-tip="${fmtKg(v.carregamento_kg)} carregados">
+            <div class="bar-fill" style="width:${(v.carregamento_kg/maxC*100)}%; background:var(--series-1)"></div>
+          </div>
+          <span class="n">${fmtKg(v.carregamento_kg)}</span>
+        </div>`).join('');
+      const totalClientes = Object.values(AGG.byClient).filter(v => v.carregamento_kg > 0).length;
       document.getElementById('clientNote').textContent =
-        `Mostrando os 20 maiores de ${totalClients} clientes/fornecedores/usinas reais registrados no período. Nomes exatamente como cadastrados no AppSheet.`;
+        `Mostrando os 15 maiores de ${totalClientes} clientes reais que receberam carregamento no período. Nomes exatamente como cadastrados no AppSheet.`;
     }
 
     // ---- Filtro por dia ----
@@ -359,63 +438,114 @@
       renderDay(initial);
     }
 
+    // status considerado "concluído" para cada tipo de movimentação
+    const DONE_STATUS = { C: 'C', R: 'D' }; // Carregamento -> Carregado / Recebimento -> Descarregado
+
+    function renderProgramado(dateIso) {
+      // Recebimento programado: view Recebimentos, campo "Previsão Recebimento"
+      const rp = (REC_PROG.por_dia || {})[dateIso];
+      if (rp) {
+        document.getElementById('dayTotalReceb').textContent = fmtKg(rp.total_kg);
+        document.getElementById('dayRecebSub').textContent = `${rp.total_n} recebimento(s) programado(s) para ${fmtDatePt(dateIso)}`;
+        document.getElementById('dayStatsReceb').innerHTML = `
+          <span class="stat-pill">Total ${rp.total_n}</span>
+          <span class="stat-pill">Descarregado ${rp.descarregado_n}</span>
+          <span class="stat-pill pending">Pendente ${rp.pendente_n}</span>`;
+      } else {
+        document.getElementById('dayTotalReceb').textContent = '—';
+        document.getElementById('dayRecebSub').textContent = 'Sem recebimentos com Previsão Recebimento para este dia.';
+        document.getElementById('dayStatsReceb').innerHTML = `
+          <span class="stat-pill">Total 0</span>
+          <span class="stat-pill">Descarregado 0</span>
+          <span class="stat-pill pending">Pendente 0</span>`;
+      }
+
+      // Carregamento programado: view Pedidos, campo "Data Instrução"
+      const pp = (PED_PROG.por_dia || {})[dateIso];
+      if (pp) {
+        document.getElementById('dayTotalCarreg').textContent = fmtKg(pp.total_kg);
+        document.getElementById('dayCarregSub').textContent = `${pp.total_n} pedido(s) programado(s) para ${fmtDatePt(dateIso)}`;
+        document.getElementById('dayStatsCarreg').innerHTML = `
+          <span class="stat-pill">Total ${pp.total_n}</span>
+          <span class="stat-pill">Carregado ${pp.carregado_n}</span>
+          <span class="stat-pill pending">Pendente ${pp.pendente_n}</span>`;
+      } else {
+        document.getElementById('dayTotalCarreg').textContent = '—';
+        document.getElementById('dayCarregSub').textContent = 'Dado ainda não coletado para este dia (ver observação abaixo).';
+        document.getElementById('dayStatsCarreg').innerHTML = `
+          <span class="stat-pill">Total —</span>
+          <span class="stat-pill">Carregado —</span>
+          <span class="stat-pill pending">Pendente —</span>`;
+      }
+
+      const pedCoverage = Object.keys(PED_PROG.por_dia || {});
+      document.getElementById('dayProgNote').textContent =
+        `Recebimento programado = campo "Previsão Recebimento" da view Recebimentos (AppSheet), real, cobre qualquer dia. `
+        + `Carregamento programado = campo "Data Instrução" da view Pedidos (AppSheet), real; por enquanto coletado só para: ${pedCoverage.map(fmtDatePt).join(', ') || 'nenhum dia'} — para os demais dias mostramos "—" em vez de inventar um número.`;
+    }
+
     function renderDay(dateIso) {
+      renderProgramado(dateIso);
+
       const dayRecs = (REG.registros[dateIso] || []).map(r => ({
         hora: r[0], tipo: r[1], status: r[2], kg: r[3], clientes: r[4],
       }));
+      dayRecs.sort((a, b) => a.hora.localeCompare(b.hora));
 
-      const totalCarreg = dayRecs.filter(r => r.tipo === 'C').reduce((s, r) => s + r.kg, 0);
-      const totalReceb = dayRecs.filter(r => r.tipo === 'R').reduce((s, r) => s + r.kg, 0);
-      const nCarreg = dayRecs.filter(r => r.tipo === 'C').length;
-      const nReceb = dayRecs.filter(r => r.tipo === 'R').length;
+      const carregRecs = dayRecs.filter(r => r.tipo === 'C');
+      const recebRecs = dayRecs.filter(r => r.tipo === 'R');
 
-      document.getElementById('dayTotalReceb').textContent = fmtKg(totalReceb);
-      document.getElementById('dayTotalRecebSub').textContent = `${nReceb} movimentação(ões)`;
-      document.getElementById('dayTotalCarreg').textContent = fmtKg(totalCarreg);
-      document.getElementById('dayTotalCarregSub').textContent = `${nCarreg} movimentação(ões)`;
+      const totalCarreg = carregRecs.reduce((s, r) => s + r.kg, 0);
+      const totalReceb = recebRecs.reduce((s, r) => s + r.kg, 0);
+      const doneCarreg = carregRecs.filter(r => r.status === DONE_STATUS.C).length;
+      const doneReceb = recebRecs.filter(r => r.status === DONE_STATUS.R).length;
+      const pendCarreg = carregRecs.length - doneCarreg;
+      const pendReceb = recebRecs.length - doneReceb;
 
       const maxVal = Math.max(totalCarreg, totalReceb, 1);
       document.getElementById('dayBar').innerHTML = `
         <div class="bar-row dual">
           <span class="label">${fmtDatePt(dateIso)}</span>
-          <div class="bar-track" data-tip="Carregamento: ${fmtKg(totalCarreg)} (${nCarreg} mov.)">
+          <div class="bar-track" data-tip="Carregamento: ${fmtKg(totalCarreg)} (${carregRecs.length} mov.)">
             <div class="bar-fill" style="width:${(totalCarreg/maxVal*100)}%; background:var(--series-1)"></div>
           </div>
-          <div class="bar-track" data-tip="Recebimento: ${fmtKg(totalReceb)} (${nReceb} mov.)">
+          <div class="bar-track" data-tip="Recebimento: ${fmtKg(totalReceb)} (${recebRecs.length} mov.)">
             <div class="bar-fill" style="width:${(totalReceb/maxVal*100)}%; background:var(--series-2)"></div>
           </div>
           <span class="n">${fmtKg(totalCarreg + totalReceb)}</span>
         </div>`;
 
-      const wrap = document.getElementById('dayTableWrap');
-      if (dayRecs.length === 0) {
-        wrap.innerHTML = `<div class="empty-day">Nenhuma movimentação registrada no AppSheet para ${fmtDatePt(dateIso)}.</div>`;
-      } else {
-        const rows = [];
-        dayRecs.sort((a, b) => a.hora.localeCompare(b.hora));
-        dayRecs.forEach(r => {
+      function renderList(recs) {
+        if (recs.length === 0) return `<p class="note">Nenhuma movimentação.</p>`;
+        return recs.map(r => {
           const clientesList = r.clientes.length ? r.clientes : [['—', r.kg]];
-          clientesList.forEach(([nome, kg]) => {
-            const tipoClass = r.tipo === 'C' ? 'carreg' : 'receb';
+          return clientesList.map(([nome, kg]) => {
             const statusClass = STATUS_OK[r.status] ? 'ok' : 'bad';
-            rows.push(`<tr>
-              <td>${r.hora}</td>
-              <td>${nome}</td>
-              <td><span class="tipo-badge ${tipoClass}">${TIPO_LABEL[r.tipo] || r.tipo}</span></td>
-              <td class="num">${fmtKg(kg)}</td>
-              <td><span class="status-badge ${statusClass}">${STATUS_LABEL[r.status] || r.status}</span></td>
-            </tr>`);
-          });
-        });
-        wrap.innerHTML = `<table class="simple">
-          <tr><th>Hora</th><th>Usina / Cliente / Fornecedor</th><th>Tipo</th><th>Kg</th><th>Status</th></tr>
-          ${rows.join('')}
-        </table>`;
+            return `<div class="day-item-row">
+              <span><span class="hora">${r.hora}</span><span class="name" title="${nome}">${nome}</span></span>
+              <span class="kg">${fmtKg(kg)}</span>
+              <span class="status-badge ${statusClass}">${STATUS_LABEL[r.status] || r.status}</span>
+            </div>`;
+          }).join('');
+        }).join('');
       }
 
+      document.getElementById('dayUsinasSub').textContent =
+        `${fmtKg(totalReceb)} — ${recebRecs.length} movimentação(ões) em ${fmtDatePt(dateIso)}`;
+      document.getElementById('dayUsinasList').innerHTML = renderList(recebRecs);
+
+      document.getElementById('dayClientesSub').textContent =
+        `${fmtKg(totalCarreg)} — ${carregRecs.length} movimentação(ões) em ${fmtDatePt(dateIso)}`;
+      document.getElementById('dayClientesList').innerHTML = renderList(carregRecs);
+
+      document.getElementById('dayEmpty').innerHTML = dayRecs.length === 0
+        ? `<div class="empty-day">Nenhuma movimentação registrada no AppSheet para ${fmtDatePt(dateIso)}.</div>`
+        : '';
+      document.getElementById('daySplit').style.display = dayRecs.length === 0 ? 'none' : 'grid';
+
       const note = dateIso > maxRegDate
-        ? `Fonte (AppSheet) ainda não tem registros além de ${fmtDatePt(maxRegDate)} — este dia ainda não aconteceu ou não foi lançado no pátio.`
-        : `Fonte: view Veículos do AppSheet, filtrada por Operação=Macatuba e Data Chegada Pátio = ${fmtDatePt(dateIso)}. Status exatamente como no AppSheet.`;
+        ? `Fonte (AppSheet) ainda não tem registros além de ${fmtDatePt(maxRegDate)} — este dia ainda não aconteceu ou não foi lançado no pátio. "Pendente" conta veículos com status Reprovado/Desistência (ainda não concluídos).`
+        : `Fonte: view Veículos do AppSheet, filtrada por Operação=Macatuba e Data Chegada Pátio = ${fmtDatePt(dateIso)}. Status exatamente como no AppSheet. "Pendente" conta veículos com status Reprovado/Desistência (ainda não concluídos).`;
       document.getElementById('dayNote').textContent = note;
     }
 
