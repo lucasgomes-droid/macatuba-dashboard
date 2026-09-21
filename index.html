@@ -152,6 +152,25 @@
   .day-item-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
   .day-item-row .hora { color: var(--text-muted); font-size: 0.74rem; margin-right: 6px; }
   .day-item-row .kg { color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; margin-right: 8px; }
+
+  .status-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .status-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 12px; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .status-chip .n { font-variant-numeric: tabular-nums; }
+  .status-chip.c-good { background: color-mix(in srgb, var(--status-good) 18%, transparent); color: var(--status-good); }
+  .status-chip.c-warning { background: color-mix(in srgb, var(--status-warning) 22%, transparent); color: color-mix(in srgb, var(--status-warning) 60%, var(--text-primary)); }
+  .status-chip.c-serious { background: color-mix(in srgb, var(--status-serious) 20%, transparent); color: var(--status-serious); }
+  .status-chip.c-critical { background: color-mix(in srgb, var(--status-critical) 18%, transparent); color: var(--status-critical); }
+  .status-chip.c-info { background: color-mix(in srgb, var(--series-1) 18%, transparent); color: var(--series-1); }
+  .status-chip.c-purple { background: color-mix(in srgb, var(--series-7) 18%, transparent); color: var(--series-7); }
+  .status-chip.c-neutral { background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--border); }
+
+  .mercado-group { margin-bottom: 18px; }
+  .mercado-group:last-child { margin-bottom: 0; }
+  .mercado-title { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; font-weight: 600; margin: 0 0 8px; }
+  .mercado-title .count { font-weight: 400; color: var(--text-muted); font-size: 0.78rem; }
+  table.pedidos th:nth-child(4), table.pedidos td:nth-child(4) { text-align: right; }
+  table.pedidos td.pedido-num { color: var(--text-muted); font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+  .empty-group { padding: 10px 0; color: var(--text-muted); font-size: 0.82rem; }
 </style>
 </head>
 <body>
@@ -215,19 +234,19 @@
   </div>
 
   <div class="panel">
-    <h2>Relatório de movimentação (kg)</h2>
-    <p class="panel-sub" id="reportSub"></p>
-    <div class="tabs">
-      <button class="tab-btn active" data-period="daily">Diário</button>
-      <button class="tab-btn" data-period="weekly">Semanal</button>
-      <button class="tab-btn" data-period="monthly">Mensal</button>
-    </div>
-    <div class="legend">
-      <span><i style="background:var(--series-1)"></i> Carregamento (saída / Pedidos)</span>
-      <span><i style="background:var(--series-2)"></i> Recebimento (entrada / Fornecedores)</span>
-    </div>
-    <div id="reportChart"></div>
-    <p class="note">Fonte: view Veículos do AppSheet (ICC - Gestão Operacional), filtrada para a unidade Macatuba. Quantidades reais em quilogramas (kg), não contagem de registros.</p>
+    <h2>Pedidos programados — detalhamento por status</h2>
+    <p class="panel-sub" id="pedStatusSub"></p>
+    <div class="status-summary" id="pedStatusSummary"></div>
+    <div id="pedMercadoGroups"></div>
+    <p class="note" id="pedDetailNote"></p>
+  </div>
+
+  <div class="panel">
+    <h2>Recebimentos programados — detalhamento por status</h2>
+    <p class="panel-sub" id="recStatusSub"></p>
+    <div class="status-summary" id="recStatusSummary"></div>
+    <table class="simple" id="recDetailTable"></table>
+    <p class="note" id="recDetailNote"></p>
   </div>
 
   <div class="day-split" style="margin-top:0; margin-bottom:20px;">
@@ -262,7 +281,6 @@
     let REG = null;
     let REC_PROG = null;
     let PED_PROG = null;
-    let currentPeriod = 'daily';
     let maxRegDate = null;
 
     async function load() {
@@ -282,7 +300,6 @@
       maxRegDate = regDates[regDates.length - 1];
 
       render(data);
-      renderReport(currentPeriod);
       renderClients();
       setupDayFilter();
     }
@@ -319,38 +336,128 @@
         `<tr><th>Tipo</th><th>Ref.</th><th>Status</th><th>Qtd.</th><th>Cliente/Fornecedor</th></tr>` + rows.join('');
     }
 
-    function renderReport(period) {
-      currentPeriod = period;
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.period === period));
+    // ---- Cores de status (Pedidos e Recebimentos) ----
+    const PEDIDO_STATUS_COLOR = {
+      'Carregado': 'c-good',
+      'Aguardando Carregamento': 'c-info',
+      'Aguardando OP': 'c-warning',
+      'Não Iniciado': 'c-serious',
+      'Em Fumigação': 'c-purple',
+      'Cancelado': 'c-critical',
+    };
+    const PEDIDO_STATUS_ORDER = ['Carregado', 'Aguardando Carregamento', 'Aguardando OP', 'Não Iniciado', 'Em Fumigação', 'Cancelado'];
 
-      const map = AGG[period];
-      let keys = Object.keys(map).sort();
-      const labelFmt = {
-        daily: k => k.slice(5),
-        weekly: k => k.replace('2026-', ''),
-        monthly: k => k,
-      }[period];
-      const subFmt = { daily: 'Últimos 30 dias com movimento', weekly: 'Todas as semanas ISO com movimento', monthly: 'Todos os meses com movimento' }[period];
-      document.getElementById('reportSub').textContent = subFmt;
+    const RECEB_STATUS_COLOR = {
+      'Descarregado': 'c-good',
+      'Confirmado': 'c-info',
+      'Programado': 'c-warning',
+      'Carregado': 'c-purple',
+      'Não Descarregado': 'c-critical',
+      'Não se Apresentou': 'c-critical',
+    };
+    const RECEB_STATUS_ORDER = ['Descarregado', 'Confirmado', 'Programado', 'Carregado', 'Não Descarregado', 'Não se Apresentou'];
 
-      if (period === 'daily') keys = keys.slice(-30);
+    function statusChipsHtml(counts, colorMap, order) {
+      const keys = Object.keys(counts).sort((a, b) => {
+        const ia = order.indexOf(a), ib = order.indexOf(b);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+      });
+      if (keys.length === 0) return '<span class="note">Nenhum registro.</span>';
+      return keys.map(k => `<span class="status-chip ${colorMap[k] || 'c-neutral'}">${k} <span class="n">${counts[k]}</span></span>`).join('');
+    }
 
-      const maxVal = Math.max(...keys.map(k => Math.max(map[k].carregamento_kg, map[k].recebimento_kg)), 1);
-      const el = document.getElementById('reportChart');
-      el.innerHTML = keys.map(k => {
-        const v = map[k];
-        return `
-        <div class="bar-row dual">
-          <span class="label">${labelFmt(k)}</span>
-          <div class="bar-track" data-tip="Carregamento: ${fmtKg(v.carregamento_kg)} (${v.carregamento_n} mov.)">
-            <div class="bar-fill" style="width:${(v.carregamento_kg/maxVal*100)}%; background:var(--series-1)"></div>
-          </div>
-          <div class="bar-track" data-tip="Recebimento: ${fmtKg(v.recebimento_kg)} (${v.recebimento_n} mov.)">
-            <div class="bar-fill" style="width:${(v.recebimento_kg/maxVal*100)}%; background:var(--series-2)"></div>
-          </div>
-          <span class="n">${fmtKg(v.carregamento_kg + v.recebimento_kg)}</span>
+    function pedidosTableHtml(regs) {
+      if (regs.length === 0) return '<p class="empty-group">Nenhum pedido neste grupo.</p>';
+      const sorted = [...regs].sort((a, b) => {
+        const ia = PEDIDO_STATUS_ORDER.indexOf(a[2]), ib = PEDIDO_STATUS_ORDER.indexOf(b[2]);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || b[1] - a[1];
+      });
+      const rows = sorted.map(([cliente, kg, status, pedido]) => `
+        <tr>
+          <td><span class="status-chip ${PEDIDO_STATUS_COLOR[status] || 'c-neutral'}">${status}</span></td>
+          <td class="pedido-num">${pedido || '—'}</td>
+          <td>${cliente}</td>
+          <td class="num">${fmtKg(kg)}</td>
+        </tr>`).join('');
+      return `<table class="simple pedidos"><tr><th>Status</th><th>Pedido</th><th>Cliente</th><th>Qtd. (kg)</th></tr>${rows}</table>`;
+    }
+
+    function renderPedidosDetalhe(dateIso) {
+      const pp = (PED_PROG.por_dia || {})[dateIso];
+      const summaryEl = document.getElementById('pedStatusSummary');
+      const groupsEl = document.getElementById('pedMercadoGroups');
+      const subEl = document.getElementById('pedStatusSub');
+      const noteEl = document.getElementById('pedDetailNote');
+
+      if (!pp || !pp.registros.length) {
+        subEl.textContent = `Nenhum pedido programado (Data Instrução) para ${fmtDatePt(dateIso)}.`;
+        summaryEl.innerHTML = '';
+        groupsEl.innerHTML = '';
+        noteEl.textContent = 'Fonte: view Pedidos do AppSheet, campo "Data Instrução". Coletado manualmente — cobre por enquanto só os dias já filtrados.';
+        return;
+      }
+
+      const counts = {};
+      pp.registros.forEach(([, , status]) => { counts[status] = (counts[status] || 0) + 1; });
+      subEl.textContent = `${pp.total_n} pedido(s) — ${fmtKg(pp.total_kg)} programado(s) para ${fmtDatePt(dateIso)}, por status e por mercado.`;
+      summaryEl.innerHTML = statusChipsHtml(counts, PEDIDO_STATUS_COLOR, PEDIDO_STATUS_ORDER);
+
+      const externo = pp.registros.filter(r => r[4] === 'Mercado Externo');
+      const interno = pp.registros.filter(r => r[4] === 'Mercado Interno');
+      const outros = pp.registros.filter(r => r[4] !== 'Mercado Externo' && r[4] !== 'Mercado Interno');
+
+      let html = `
+        <div class="mercado-group">
+          <h3 class="mercado-title">Mercado Interno <span class="count">${interno.length} pedido(s)</span></h3>
+          ${pedidosTableHtml(interno)}
+        </div>
+        <div class="mercado-group">
+          <h3 class="mercado-title">Mercado Externo <span class="count">${externo.length} pedido(s)</span></h3>
+          ${pedidosTableHtml(externo)}
         </div>`;
-      }).join('');
+      if (outros.length) {
+        html += `
+        <div class="mercado-group">
+          <h3 class="mercado-title">Sem tipo informado <span class="count">${outros.length} pedido(s)</span></h3>
+          ${pedidosTableHtml(outros)}
+        </div>`;
+      }
+      groupsEl.innerHTML = html;
+      noteEl.textContent = 'Fonte: view Pedidos do AppSheet (ICC - Gestão Operacional), campo "Data Instrução" = dia selecionado, filtrado por Operação=Macatuba. Status e Tipo de Pedido exatamente como no AppSheet.';
+    }
+
+    function renderRecebimentosDetalhe(dateIso) {
+      const rp = (REC_PROG.por_dia || {})[dateIso];
+      const summaryEl = document.getElementById('recStatusSummary');
+      const tableEl = document.getElementById('recDetailTable');
+      const subEl = document.getElementById('recStatusSub');
+      const noteEl = document.getElementById('recDetailNote');
+
+      if (!rp || !rp.registros.length) {
+        subEl.textContent = `Nenhum recebimento programado (Previsão Recebimento) para ${fmtDatePt(dateIso)}.`;
+        summaryEl.innerHTML = '';
+        tableEl.innerHTML = '';
+        noteEl.textContent = 'Fonte: view Recebimentos do AppSheet, campo "Previsão Recebimento".';
+        return;
+      }
+
+      const counts = {};
+      rp.registros.forEach(([, , status]) => { counts[status] = (counts[status] || 0) + 1; });
+      subEl.textContent = `${rp.total_n} recebimento(s) — ${fmtKg(rp.total_kg)} programado(s) para ${fmtDatePt(dateIso)}, por status.`;
+      summaryEl.innerHTML = statusChipsHtml(counts, RECEB_STATUS_COLOR, RECEB_STATUS_ORDER);
+
+      const sorted = [...rp.registros].sort((a, b) => {
+        const ia = RECEB_STATUS_ORDER.indexOf(a[2]), ib = RECEB_STATUS_ORDER.indexOf(b[2]);
+        return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib) || b[1] - a[1];
+      });
+      const rows = sorted.map(([fornecedor, kg, status]) => `
+        <tr>
+          <td><span class="status-chip ${RECEB_STATUS_COLOR[status] || 'c-neutral'}">${status}</span></td>
+          <td>${fornecedor}</td>
+          <td class="num">${fmtKg(kg)}</td>
+        </tr>`).join('');
+      tableEl.innerHTML = `<tr><th>Status</th><th>Fornecedor</th><th>Qtd. (kg)</th></tr>${rows}`;
+      noteEl.textContent = 'Fonte: view Recebimentos do AppSheet (ICC - Gestão Operacional), campo "Previsão Recebimento" = dia selecionado, filtrado para a unidade Macatuba. Status exatamente como no AppSheet.';
     }
 
     function renderClients() {
@@ -486,6 +593,8 @@
 
     function renderDay(dateIso) {
       renderProgramado(dateIso);
+      renderPedidosDetalhe(dateIso);
+      renderRecebimentosDetalhe(dateIso);
 
       const dayRecs = (REG.registros[dateIso] || []).map(r => ({
         hora: r[0], tipo: r[1], status: r[2], kg: r[3], clientes: r[4],
@@ -548,10 +657,6 @@
         : `Fonte: view Veículos do AppSheet, filtrada por Operação=Macatuba e Data Chegada Pátio = ${fmtDatePt(dateIso)}. Status exatamente como no AppSheet. "Pendente" conta veículos com status Reprovado/Desistência (ainda não concluídos).`;
       document.getElementById('dayNote').textContent = note;
     }
-
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => renderReport(btn.dataset.period));
-    });
 
     load().catch(err => {
       document.getElementById('statusText').textContent = 'OFFLINE';
